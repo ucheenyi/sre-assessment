@@ -1,0 +1,14 @@
+# otel-collector/sampling-policy.yaml — Tail Sampling Rationale
+#
+# errors-policy (100%): Every error must be captured. Dropping error traces
+#   defeats observability. No exceptions.
+#
+# slow-traces-policy (100%, 2000ms): Latency outliers are where SLA violations
+#   originate. 2s = 4x the expected Online Boutique p99 (~500ms).
+#
+# high-priority (100%): App code opts in via sampling.priority=1 span attribute.
+#   Applied to checkout/payment flows to guarantee full trace coverage.
+#
+# probabilistic (10%): Healthy traffic follows predictable patterns.
+#   10% gives statistically valid p50/p95/p99 percentiles while cutting
+#   Elasticsearch storage costs by ~90% vs 100% sampling.

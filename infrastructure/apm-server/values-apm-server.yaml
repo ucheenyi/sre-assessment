@@ -1,0 +1,16 @@
+apmConfig:
+  apm-server.yml: |
+    apm-server:
+      host: "0.0.0.0:8200"
+      secret_token: "myAssessmentSecretToken123"
+      rum:
+        enabled: true
+        allow_origins: ["*"]
+
+    output.elasticsearch:
+      hosts: ["elasticsearch-master:9200"]
+      username: "elastic"
+      password: "EJTBz0UxOnhgSoA6"
+
+    logging.level: info
+    logging.to_files: false

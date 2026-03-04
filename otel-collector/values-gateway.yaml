@@ -1,0 +1,97 @@
+# otel-collector/values-gateway.yaml
+mode: deployment
+replicaCount: 1
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: "0.98.0"
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+service:
+  type: ClusterIP
+
+# Disable the default :8888 metrics port to avoid port conflicts between pods
+ports:
+  metrics:
+    enabled: false
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+  processors:
+    batch:
+      send_batch_size: 2000
+      timeout: 15s
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    tail_sampling:
+      decision_wait: 10s
+      num_traces: 50000
+      expected_new_traces_per_sec: 100
+      policies:
+        - name: errors-policy
+          type: status_code
+          status_code: { status_codes: [ERROR] }
+        - name: slow-traces-policy
+          type: latency
+          latency: { threshold_ms: 2000 }
+        - name: high-priority
+          type: string_attribute
+          string_attribute: { key: sampling.priority, values: ["1"] }
+        - name: probabilistic-policy
+          type: probabilistic
+          probabilistic: { sampling_percentage: 10 }
+
+  exporters:
+    otlp/elastic:
+      endpoint: "apm-server-apm-server.monitoring.svc.cluster.local:8200"
+      headers:
+        Authorization: "Bearer myAssessmentSecretToken123"
+      tls:
+        insecure: true
+      retry_on_failure:
+        enabled: true
+        initial_interval: 5s
+        max_interval: 30s
+        max_elapsed_time: 0
+
+  extensions:
+    health_check:
+      endpoint: 0.0.0.0:13133
+    zpages:
+      endpoint: 0.0.0.0:55679
+
+  service:
+    extensions: [health_check, zpages]
+    # Disable telemetry metrics endpoint to avoid :8888 port conflict
+    telemetry:
+      metrics:
+        level: none
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, tail_sampling, batch]
+        exporters: [otlp/elastic]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp/elastic]
+      logs:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp/elastic]

@@ -1,0 +1,20 @@
+resources:
+  requests:
+    memory: 1Gi
+  limits:
+    memory: 2Gi
+
+# Override the readiness probe path to match the basePath
+healthCheckPath: "/kibana/app/kibana"
+
+kibanaConfig:
+  kibana.yml: |
+    server.basePath: "/kibana"
+    server.rewriteBasePath: true
+    elasticsearch.hosts: ["https://elasticsearch-master:9200"]
+    elasticsearch.serviceAccountToken: "AAEAAWVsYXN0aWMva2liYW5hL2Fzc2Vzc21lbnQtdG9rZW4yOjZVMkxnQlNVVFpHWU45anF0UHNRanc"
+    elasticsearch.ssl.verificationMode: none
+    xpack.encryptedSavedObjects.encryptionKey: "assessmentEncryptionKey1234567890"
+    xpack.security.encryptionKey: "assessmentSecurityKey12345678901"
+    xpack.reporting.encryptionKey: "assessmentReportingKey123456789"
+    xpack.reporting.kibanaServer.hostname: localhost

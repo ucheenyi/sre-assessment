@@ -1,0 +1,152 @@
+# otel-collector/values-agent.yaml
+mode: daemonset
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: "0.98.0"
+
+serviceAccount:
+  create: true
+  name: otel-agent
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Disable :8888 self-metrics port to avoid port conflicts between pods on same node
+ports:
+  metrics:
+    enabled: false
+
+extraVolumes:
+  - name: hostfs
+    hostPath:
+      path: /
+extraVolumeMounts:
+  - name: hostfs
+    mountPath: /hostfs
+    readOnly: true
+    mountPropagation: HostToContainer
+
+# KUBE_NODE_NAME is needed by k8sattributes processor filter
+extraEnvs:
+  - name: KUBE_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+    zipkin:
+      endpoint: 0.0.0.0:9411
+    hostmetrics:
+      root_path: /hostfs
+      collection_interval: 30s
+      scrapers:
+        cpu:
+          metrics:
+            system.cpu.utilization:
+              enabled: true
+        memory:
+          metrics:
+            system.memory.utilization:
+              enabled: true
+        disk: {}
+        filesystem:
+          exclude_mount_points:
+            mount_points: ["/dev/*", "/proc/*", "/sys/*"]
+            match_type: regexp
+          exclude_fs_types:
+            fs_types: [autofs, binfmt_misc, bpf, cgroup2, configfs, debugfs,
+                       devpts, devtmpfs, fusectl, hugetlbfs, iso9660, mqueue,
+                       nsfs, overlay, proc, procfs, pstore, rpc_pipefs,
+                       securityfs, selinuxfs, squashfs, sysfs, tracefs]
+            match_type: strict
+        load: {}
+        network: {}
+        processes: {}
+
+  processors:
+    batch:
+      send_batch_size: 1000
+      timeout: 10s
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    resourcedetection:
+      # FIXED: removed 'k8snode' — it requires K8S_NODE_NAME env var injected
+      # at OS level which AKS doesn't do. 'azure' covers node metadata on AKS.
+      detectors: [env, azure]
+      timeout: 2s
+      override: false
+    k8sattributes:
+      auth_type: serviceAccount
+      passthrough: false
+      filter:
+        node_from_env_var: KUBE_NODE_NAME
+      extract:
+        metadata:
+          - k8s.pod.name
+          - k8s.pod.uid
+          - k8s.deployment.name
+          - k8s.namespace.name
+          - k8s.node.name
+          - k8s.pod.start_time
+      pod_association:
+        - sources:
+            - from: resource_attribute
+              name: k8s.pod.ip
+        - sources:
+            - from: connection
+
+  exporters:
+    otlp/gateway:
+      endpoint: otel-gateway.monitoring.svc.cluster.local:4317
+      tls:
+        insecure: true
+
+  extensions:
+    health_check:
+      endpoint: 0.0.0.0:13133
+    zpages:
+      endpoint: 0.0.0.0:55679
+
+  service:
+    extensions: [health_check, zpages]
+    telemetry:
+      metrics:
+        level: none
+    pipelines:
+      traces:
+        receivers: [otlp, zipkin]
+        processors: [memory_limiter, k8sattributes, resourcedetection, batch]
+        exporters: [otlp/gateway]
+      metrics:
+        receivers: [otlp, hostmetrics]
+        processors: [memory_limiter, k8sattributes, resourcedetection, batch]
+        exporters: [otlp/gateway]
+      logs:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, resourcedetection, batch]
+        exporters: [otlp/gateway]
+
+clusterRole:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["pods", "namespaces", "nodes"]
+      verbs: ["get", "watch", "list"]
+    - apiGroups: ["apps"]
+      resources: ["replicasets"]
+      verbs: ["get", "list", "watch"]
