@@ -1,0 +1,47 @@
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: otel-agent-init
+        image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-dotnet:1.2.0
+        command: ["cp", "-r", "/autoinstrumentation/.", "/otel-auto-instrumentation/"]
+        volumeMounts:
+        - name: otel-auto-instrumentation-dotnet
+          mountPath: /otel-auto-instrumentation
+      containers:
+      - name: server
+        env:
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: CORECLR_ENABLE_PROFILING
+          value: "1"
+        - name: CORECLR_PROFILER
+          value: "{918728DD-259F-4A6A-AC2B-B85E1B658318}"
+        - name: CORECLR_PROFILER_PATH
+          value: /otel-auto-instrumentation/linux-x64/OpenTelemetry.AutoInstrumentation.Native.so
+        - name: DOTNET_ADDITIONAL_DEPS
+          value: /otel-auto-instrumentation/AdditionalDeps
+        - name: DOTNET_SHARED_STORE
+          value: /otel-auto-instrumentation/store
+        - name: DOTNET_STARTUP_HOOKS
+          value: /otel-auto-instrumentation/net/OpenTelemetry.AutoInstrumentation.StartupHook.dll
+        - name: OTEL_DOTNET_AUTO_HOME
+          value: /otel-auto-instrumentation
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://$(NODE_IP):4318"
+        - name: OTEL_SERVICE_NAME
+          value: "cartservice"
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "deployment.environment=assessment,service.version=1.0.0"
+        - name: OTEL_PROPAGATORS
+          value: "tracecontext,baggage"
+        - name: OTEL_DOTNET_AUTO_TRACES_ADDITIONAL_SOURCES
+          value: "StackExchange.Redis"
+        volumeMounts:
+        - name: otel-auto-instrumentation-dotnet
+          mountPath: /otel-auto-instrumentation
+      volumes:
+      - name: otel-auto-instrumentation-dotnet
+        emptyDir: {}
