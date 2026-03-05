@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-nginx-config
+  namespace: monitoring
+data:
+  filebeat.yml: |
+    filebeat.autodiscover:
+      providers:
+      - type: kubernetes
+        node: ${NODE_NAME}
+        hints.enabled: true
+        hints.default_config.enabled: false
+        templates:
+        - condition:
+            contains:
+              kubernetes.labels.app.kubernetes.io/name: ingress-nginx
+          config:
+          - type: container
+            paths:
+              - /var/log/containers/*ingress-nginx*.log
+            parsers:
+              - ndjson:
+                  target: ""
+                  add_error_key: true
+    processors:
+    - add_fields:
+        target: ''
+        fields:
+          data_stream.type: logs
+          data_stream.dataset: nginx.access
+          data_stream.namespace: default
+    output.elasticsearch:
+      hosts: ["elasticsearch-master:9200"]
+      username: elastic
+      password: "YOUR_ES_PASSWORD"
+      data_stream.enabled: true
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: filebeat-nginx
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: filebeat-nginx
+  template:
+    metadata:
+      labels:
+        app: filebeat-nginx
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      containers:
+      - name: filebeat
+        image: docker.elastic.co/beats/filebeat:8.13.0
+        args: ["-c", "/etc/filebeat/filebeat.yml", "-e"]
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: config
+          mountPath: /etc/filebeat
+          readOnly: true
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: filebeat-nginx-config
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
