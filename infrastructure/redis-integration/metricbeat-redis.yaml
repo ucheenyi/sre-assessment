@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metricbeat-redis-config
+  namespace: monitoring
+data:
+  metricbeat.yml: |
+    metricbeat.modules:
+    - module: redis
+      metricsets: [info, keyspace, key, slowlog]
+      period: 30s
+      hosts: ["redis-master.monitoring.svc.cluster.local:6379"]
+      password: redisPass123
+
+    output.elasticsearch:
+      hosts: ["elasticsearch-master:9200"]
+      username: elastic
+      password: "YOUR_ES_PASSWORD"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metricbeat-redis
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: metricbeat-redis
+  template:
+    metadata:
+      labels:
+        app: metricbeat-redis
+    spec:
+      containers:
+      - name: metricbeat
+        image: docker.elastic.co/beats/metricbeat:8.13.0
+        args: ["-c", "/etc/metricbeat/metricbeat.yml", "-e"]
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: config
+          mountPath: /etc/metricbeat
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: metricbeat-redis-config
