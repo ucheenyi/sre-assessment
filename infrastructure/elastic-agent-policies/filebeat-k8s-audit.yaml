@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-audit-config
+  namespace: monitoring
+data:
+  filebeat.yml: |
+    filebeat.inputs:
+    - type: filestream
+      id: k8s-audit-logs
+      paths:
+        - /var/log/kubernetes/audit/audit.log
+        - /var/log/audit/audit.log
+      parsers:
+        - ndjson:
+            target: "audit"
+            add_error_key: true
+      processors:
+        - add_kubernetes_metadata:
+            in_cluster: true
+    output.elasticsearch:
+      hosts: ["elasticsearch-master:9200"]
+      username: elastic
+      password: "YOUR_ES_PASSWORD"
+      index: "logs-k8s.audit-default"
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: filebeat-audit
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: filebeat-audit
+  template:
+    metadata:
+      labels:
+        app: filebeat-audit
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      containers:
+      - name: filebeat
+        image: docker.elastic.co/beats/filebeat:8.13.0
+        args: ["-c", "/etc/filebeat/filebeat.yml", "-e"]
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: config
+          mountPath: /etc/filebeat
+          readOnly: true
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: filebeat-audit-config
+      - name: varlog
+        hostPath:
+          path: /var/log
