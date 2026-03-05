@@ -1,0 +1,25 @@
+daemonset:
+  hostNetworking: true
+  metricbeatConfig:
+    metricbeat.yml: |
+      metricbeat.modules:
+      - module: system
+        metricsets:
+          - cpu
+          - load
+          - memory
+          - network
+          - process
+          - process_summary
+          - filesystem
+          - diskio
+        period: 10s
+        processes: ['.*']
+        cpu.metrics: [percentages, normalized_percentages]
+      output.elasticsearch:
+        hosts: ["https://elasticsearch-master:9200"]
+        username: elastic
+        password: EJTBz0UxOnhgSoA6
+        ssl.verification_mode: none
+      setup.kibana:
+        host: "http://kibana-kibana:5601/kibana"
