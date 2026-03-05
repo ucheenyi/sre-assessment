@@ -8,9 +8,14 @@ apmConfig:
         allow_origins: ["*"]
 
     output.elasticsearch:
-      hosts: ["elasticsearch-master:9200"]
+      hosts: ["https://elasticsearch-master:9200"]
       username: "elastic"
       password: "EJTBz0UxOnhgSoA6"
+      ssl.verification_mode: none
+
+    setup.template.enabled: true
+    setup.template.overwrite: true
+    setup.ilm.enabled: true
 
     logging.level: info
     logging.to_files: false
