@@ -1,32 +1,39 @@
 # SRE Assessment
+
 # MTN / ITStack SRE Practical Assessment
 
 ## Overview
+
 Full-stack observability implementation on Azure Kubernetes Service (AKS) using the Elastic Stack, OpenTelemetry, and the Google Online Boutique microservices demo.
 
 ## Live Endpoints
-| Service | URL |
-|---------|-----|
-| Online Boutique | http://52.188.176.204 |
-| Kibana | http://52.188.176.204/kibana |
-| APM Server | http://52.188.176.204/apm |
+
+| Service         | URL                          |
+| --------------- | ---------------------------- |
+| Online Boutique | http://52.188.176.204        |
+| Kibana          | http://52.188.176.204/kibana |
+| APM Server      | http://52.188.176.204/apm    |
 
 ## Prerequisites
-- Azure CLI (`az`) — logged in with active subscription
-- `kubectl` — configured for AKS cluster
-- `helm` v3.x
-- `git`
+
+* Azure CLI (`az`) — logged in with active subscription
+* `kubectl` — configured for AKS cluster
+* `helm` v3.x
+* `git`
 
 ## Cluster Setup
+
 ```bash
 az aks get-credentials --resource-group sre-assessment --name sre-cluster
 kubectl get nodes  # verify 2 nodes running
 ```
 
 ## Deploy Order
-> ⚠️ Deploy in this exact order — collectors crash-loop if APM Server doesn't exist first.
+
+⚠️ Deploy in this exact order — collectors crash-loop if APM Server doesn't exist first.
 
 ### 1. Elastic Stack
+
 ```bash
 helm repo add elastic https://helm.elastic.co && helm repo update
 
@@ -53,6 +60,7 @@ helm install apm-server elastic/apm-server --namespace monitoring \
 ```
 
 ### 2. OTel Collectors
+
 ```bash
 helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 
@@ -69,12 +77,14 @@ kubectl patch daemonset otel-agent-opentelemetry-collector-agent -n monitoring \
 ```
 
 ### 3. Online Boutique
+
 ```bash
 kubectl create namespace boutique
 kubectl apply -f boutique.yaml
 ```
 
 ### 4. Instrumentation
+
 ```bash
 # Frontend (Go)
 kubectl patch deployment frontend -n boutique \
@@ -90,6 +100,7 @@ kubectl patch deployment recommendationservice -n boutique \
 ```
 
 ### 5. Infrastructure Monitoring
+
 ```bash
 # VM metrics
 helm install metricbeat elastic/metricbeat --namespace monitoring \
@@ -108,25 +119,84 @@ kubectl apply -f infrastructure/elastic-agent-policies/elastic-agent-daemonset.y
 ```
 
 ## Verify Everything Running
+
 ```bash
 kubectl get pods -n monitoring
 kubectl get pods -n boutique
 ```
 
-Expected: all pods `1/1 Running`
+Expected: all pods `1/1 Running`.
 
 ## Kibana Access
-- URL: `http://52.188.176.204/kibana`
-- Username: `elastic`
-- Password: retrieve with:
+
+* URL: http://52.188.176.204/kibana
+* Username: elastic
+
+Retrieve password with:
+
 ```bash
 kubectl get secret -n monitoring elasticsearch-master-credentials \
   -o jsonpath='{.data.password}' | base64 -d
 ```
 
+---
+
+# Dashboards
+
+Prebuilt Kibana dashboards are exported in **NDJSON format** and stored in:
+
+dashboards/all-dashboards.ndjson
+
+These dashboards include:
+
+* Service Health Overview
+* Frontend / Real User Monitoring (RUM) Performance
+* Business Transaction Monitoring
+
+### Importing Dashboards into Kibana
+
+1. Open Kibana
+2. Navigate to **Stack Management → Saved Objects**
+3. Click **Import**
+4. Upload:
+
+dashboards/all-dashboards.ndjson
+
+Kibana will automatically recreate all dashboards and their dependencies.
+
+---
+
+## Repository Structure
+
+```
+sre-assessment
+│
+├── dashboards/
+│   └── all-dashboards.ndjson
+│
+├── docs/
+│   └── DECISIONS.md
+│
+├── infrastructure/
+│
+├── instrumentation/
+│
+├── otel_collector/
+│
+├── boutique.yaml
+└── README.md
+```
+
+---
+
 ## Architecture Decisions
-See [docs/DECISIONS.md](docs/DECISIONS.md) for all Architecture Decision Records (ADR-001 to ADR-007).
+
+See **docs/DECISIONS.md** for all Architecture Decision Records (ADR-001 to ADR-007).
+
+---
 
 ## Known Issues
-- Traces pipeline: Go and C# pre-built images lack compiled-in OTel SDK — traces not flowing to Kibana APM. Fix: use OTel Operator for automatic SDK injection.
-- RUM: Agent deployed but ingress path routing needs fix for browser access.
+
+* Traces pipeline: Go and C# pre-built images lack compiled-in OTel SDK — traces not flowing to Kibana APM. Fix: use OTel Operator for automatic SDK injection.
+
+* RUM: Agent deployed but ingress path routing requires additional configuration for browser access.
