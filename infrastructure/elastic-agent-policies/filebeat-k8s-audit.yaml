@@ -15,13 +15,11 @@ data:
         - ndjson:
             target: "audit"
             add_error_key: true
-      processors:
-        - add_kubernetes_metadata:
-            in_cluster: true
     output.elasticsearch:
-      hosts: ["elasticsearch-master:9200"]
+      hosts: ["https://elasticsearch-master:9200"]
       username: elastic
-      password: "YOUR_ES_PASSWORD"
+      password: "EJTBz0UxOnhgSoA6"
+      ssl.verification_mode: none
       index: "logs-k8s.audit-default"
 ---
 apiVersion: apps/v1
