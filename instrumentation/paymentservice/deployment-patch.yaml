@@ -1,0 +1,30 @@
+# instrumentation/paymentservice/deployment-patch.yaml
+spec:
+  template:
+    spec:
+      containers:
+      - name: server
+        env:
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://$(NODE_IP):4317"
+        - name: OTEL_SERVICE_NAME
+          value: "paymentservice"
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "deployment.environment=assessment,service.version=0.10.4"
+        - name: OTEL_PROPAGATORS
+          value: "tracecontext,baggage"
+        # REQUIRED: preloads tracing.js before server.js — replaces manual require()
+        # This works because NODE_OPTIONS is read by Node.js at startup
+        - name: NODE_OPTIONS
+          value: "--require /otel/tracing.js"
+        volumeMounts:
+        - name: tracing-config
+          mountPath: /otel
+      volumes:
+      - name: tracing-config
+        configMap:
+          name: paymentservice-tracing
