@@ -202,6 +202,15 @@ See **docs/DECISIONS.md** for all Architecture Decision Records (ADR-001 to ADR-
 * RUM: Agent deployed but ingress path routing requires additional configuration for browser access.
 
 
+---
+
+## Observability Architecture
+
+The platform implements distributed observability for microservices running on AKS using OpenTelemetry and the Elastic Stack.
+
+### Architecture Diagram
+
+```mermaid
 flowchart TD
 
 subgraph Users
