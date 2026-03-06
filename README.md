@@ -200,3 +200,46 @@ See **docs/DECISIONS.md** for all Architecture Decision Records (ADR-001 to ADR-
 * Traces pipeline: Go and C# pre-built images lack compiled-in OTel SDK — traces not flowing to Kibana APM. Fix: use OTel Operator for automatic SDK injection.
 
 * RUM: Agent deployed but ingress path routing requires additional configuration for browser access.
+
+
+flowchart TD
+
+subgraph Users
+A[Browser / Real User Monitoring]
+end
+
+subgraph AKS Cluster
+B[Frontend Service - Go]
+C[Cart Service - C#]
+D[Recommendation Service - Python]
+E[Other Microservices]
+
+F[OpenTelemetry Agent DaemonSet]
+G[OpenTelemetry Gateway Deployment]
+end
+
+subgraph Observability Platform
+H[APM Server]
+I[Elasticsearch]
+J[Kibana Dashboards]
+end
+
+subgraph Infrastructure Monitoring
+K[Metricbeat]
+L[Filebeat]
+end
+
+A --> B
+B --> F
+C --> F
+D --> F
+E --> F
+
+F --> G
+G --> H
+
+H --> I
+I --> J
+
+K --> I
+L --> I
